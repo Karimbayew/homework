@@ -1,0 +1,46 @@
+name: Autograding
+on: [push, pull_request]
+
+jobs:
+  grade-homework:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Test solutions
+        id: test-solutions
+        run: |
+          # Используем простой подсчет без сложного синтаксиса
+          passed=0
+          
+          # Проверяем каждую задачу
+          for task in task1 task2 task3 task4 task5 task6 task7 task8; do
+            if [ -d "$task" ] && [ -f "$task/solution.sh" ] && [ -f "$task/test.sh" ]; then
+              cd "$task"
+              chmod +x test.sh solution.sh
+              if ./test.sh; then
+                echo "✅ $task: PASSED"
+                passed=$((passed + 1))
+              else
+                echo "❌ $task: FAILED"
+              fi
+              cd ..
+            else
+              echo "⚠️  $task: SKIPPED (files missing)"
+            fi
+          done
+          
+          echo "Total passed: $passed/8"
+          echo "passed=$passed" >> $GITHUB_OUTPUT
+      
+      - name: Evaluate result
+        run: |
+          passed=${{ steps.test-solutions.outputs.passed }}
+          echo "Final score: $passed/8"
+          
+          if [ $passed -ge 6 ]; then
+            echo "🎉 HOMEWORK PASSED"
+          else
+            echo "❌ HOMEWORK FAILED - Need at least 6 tasks"
+            exit 1
+          fi
