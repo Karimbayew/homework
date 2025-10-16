@@ -1,50 +1,62 @@
 #!/bin/bash
 
+# Проверка аргументов
 if [ $# -eq 0 ]; then
     path="."
-else
+elif [ $# -eq 1 ]; then
     path="$1"
+else
+    echo "Использование: $0 [путь_к_директории]"
+    exit 1
 fi
 
+# Проверка существования директории
 if [ ! -d "$path" ]; then
     echo "Ошибка: Директория '$path' не существует"
     exit 1
 fi
 
 echo "Статистика для директории: $path"
-echo "=================================================="
+echo "=========================================="
 
-# Количество файлов и директорий
-file_count=0
-dir_count=0
+# Используем find для подсчета
+file_count=$(find "$path" -type f 2>/dev/null | wc -l)
+dir_count=$(find "$path" -type d 2>/dev/null | tail -n +2 | wc -l)  # tail -n +2 чтобы исключить саму директорию
 
-while IFS= read -r -d '' item; do
-    if [ -f "$item" ]; then
-        ((file_count++))
-    elif [ -d "$item" ]; then
-        ((dir_count++))
-    fi
-done < <(find "$path" -mindepth 1 -print0 2>/dev/null)
+# Находим самый большой файл
+largest_file=$(find "$path" -type f -exec du -b {} + 2>/dev/null | sort -nr | head -1)
 
-# Самый большой файл
-largest_file=$(find "$path" -type f -printf "%s %p\n" 2>/dev/null | sort -nr | head -1)
-
+# Вывод результатов
 echo "Количество файлов: $file_count"
 echo "Количество директорий: $dir_count"
 
 if [ -n "$largest_file" ]; then
     size=$(echo "$largest_file" | awk '{print $1}')
-    file_path=$(echo "$largest_file" | cut -d' ' -f2-)
-    file_name=$(basename "$file_path")
+    file_path=$(echo "$largest_file" | cut -f2-)
+    filename=$(basename "$file_path")
     
-    size_kb=$(echo "scale=2; $size / 1024" | bc)
-    size_mb=$(echo "scale=2; $size / 1048576" | bc)
+    # Форматируем размер для читаемости
+    if command -v numfmt >/dev/null 2>&1; then
+        # Используем numfmt если доступен
+        human_size=$(numfmt --to=iec $size)
+    else
+        # Ручное форматирование
+        if [ $size -ge 1073741824 ]; then
+            human_size=$(echo "scale=2; $size/1073741824" | bc)" GB"
+        elif [ $size -ge 1048576 ]; then
+            human_size=$(echo "scale=2; $size/1048576" | bc)" MB"
+        elif [ $size -ge 1024 ]; then
+            human_size=$(echo "scale=2; $size/1024" | bc)" KB"
+        else
+            human_size="$size bytes"
+        fi
+    fi
     
-    echo "Самый большой файл: $file_name"
-    echo "Размер: $size байт ($size_kb KB, $size_mb MB)"
+    echo "Самый большой файл: $filename"
+    echo "Размер: $human_size ($size bytes)"
     echo "Путь: $file_path"
 else
-    echo "Файлы не найдены"
+    echo "Самый большой файл: не найден"
 fi
 
-echo "=================================================="
+echo "=========================================="
